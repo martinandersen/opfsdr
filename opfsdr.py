@@ -32,7 +32,7 @@ def _load_case(mfile, verbose = 0):
    """
    # Read m-file and strip MATLAB comments
    if mfile.startswith('http'):
-      if verbose: print("Downloading case file.")
+      if verbose: print("Downloading case file: %s." % (mfile))
       if sys.version_info[0] < 3:
          from urllib2 import urlopen
          response = urlopen(mfile)
@@ -42,7 +42,7 @@ def _load_case(mfile, verbose = 0):
          with urlopen(mfile) as response:
             lines = response.read().split('\n')
    else:
-      if verbose: print("Reading case file.")
+      if verbose: print("Reading case file: %s." % (mfile))
       with open(mfile,"r") as f:
          lines = f.readlines()
 
@@ -62,6 +62,8 @@ def _load_case(mfile, verbose = 0):
    except:
       raise TypeError("Failed to parse case file.")
    else:
+      if re.search('mpc.branch\(',case_as_str) or re.search('mpc.bus\(',case_as_str) or re.search('mpc.gen\(',case_as_str):
+          raise TypeError("Case file not supported.")
       return {'baseMVA':float(baseMVA),
                'version':version,
                'bus':str_to_array(bus_str),
