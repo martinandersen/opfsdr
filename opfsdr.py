@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Semidefinite Relaxation of Optimal Power Flow Problems
 
@@ -512,8 +512,7 @@ class opf(object):
         ##
         h1 = spmatrix(1.0,range(ngen_qcost),ngen_qcost*[0],(N,1))  # quadratic cost
         I,V = [],[]
-        #for k,gen in enumerate(self.generators_with_var_real_power_and_linear_cost()):
-        for k,gen in enumerate(self.generators):
+        for k,gen in enumerate(self. generators_with_var_real_power()):
             beta = gen['Pcost']['coef'][-2]
             if gen['Pcost']['ncoef'] > 2: beta += 2.0*self.baseMVA*gen['Pcost']['coef'][-3]*gen['Pmin']
             I.append(offset['wpl'] + gen['pslack'])
