@@ -10,9 +10,11 @@ License: GPL-3
 from cvxopt import sparse, spmatrix, spdiag, matrix, max, mul, div, exp, sqrt, solvers, lapack, blas, msk
 from itertools import chain, compress
 from math import pi, atan2, cos, sin
-import cPickle, re
+import pickle, re
 import numpy as np
 import sys
+import requests
+
 try:
     import chompack
     __chompack__ = True
@@ -33,14 +35,8 @@ def _load_case(mfile, verbose = 0):
    # Read m-file and strip MATLAB comments
    if mfile.startswith('http'):
       if verbose: print("Downloading case file: %s." % (mfile))
-      if sys.version_info[0] < 3:
-         from urllib2 import urlopen
-         response = urlopen(mfile)
-         lines = response.read().split('\n')
-      else:
-         from urllib.request import urlopen
-         with urlopen(mfile) as response:
-            lines = response.read().split('\n')
+      response = requests.get(mfile)
+      lines = response.text.split('\n')
    else:
       if verbose: print("Reading case file: %s." % (mfile))
       with open(mfile,"r") as f:
@@ -291,7 +287,7 @@ class opf(object):
 
         self.bus_id_to_genlist = {}
         for k, gen in enumerate(self.generators):
-            if self.bus_id_to_genlist.has_key(gen['bus_id']):
+            if gen['bus_id'] in self.bus_id_to_genlist:
                 self.bus_id_to_genlist[gen['bus_id']].append(k)
             else:
                 self.bus_id_to_genlist[gen['bus_id']] = [k]
@@ -367,8 +363,8 @@ class opf(object):
 
         Cf = spmatrix(1.0, range(self.nbranch), f, (self.nbranch,self.nbus))
         Ct = spmatrix(1.0, range(self.nbranch), t, (self.nbranch,self.nbus))
-        Yf = spmatrix(matrix([Yff,Yft]), 2*range(self.nbranch), matrix([f,t]), (self.nbranch,self.nbus))
-        Yt = spmatrix(matrix([Ytf,Ytt]), 2*range(self.nbranch), matrix([f,t]), (self.nbranch,self.nbus))
+        Yf = spmatrix(matrix([Yff,Yft]), 2*list(range(self.nbranch)), matrix([f,t]), (self.nbranch,self.nbus))
+        Yt = spmatrix(matrix([Ytf,Ytt]), 2*list(range(self.nbranch)), matrix([f,t]), (self.nbranch,self.nbus))
         Ybus = Cf.T*Yf + Ct.T*Yt + spmatrix(Ysh, range(self.nbus), range(self.nbus), (self.nbus,self.nbus))
 
         self.Cf = Cf
@@ -408,10 +404,10 @@ class opf(object):
         return [bus for bus in self.busses if bus['type'] == 4]
 
     def busses_with_gen(self):
-        return [bus for bus in self.busses if self.bus_id_to_genlist.has_key(bus['id'])]
+        return [bus for bus in self.busses if bus['id'] in self.bus_id_to_genlist]
 
     def busses_without_gen(self):
-        return [bus for bus in self.busses if not self.bus_id_to_genlist.has_key(bus['id'])]
+        return [bus for bus in self.busses if not bus['id'] in self.bus_id_to_genlist]
 
     def symmetric_branches(self):
         return [branch for branch in self.branches if branch['ratio'] == 0.0]
@@ -445,7 +441,7 @@ class opf(object):
         return [gen for gen in self.generators if gen['qslack'] is not None]
 
     def generators_with_reactive_cost(self):
-        return [gen for gen in self.generators if gen.has_key('Qcost')]
+        return [gen for gen in self.generators if 'Qcost' in gen]
 
     def __str__(self):
         Nbranch_constr = len(self.branches_with_flow_constraints())
@@ -554,7 +550,7 @@ class opf(object):
 
             YI,YJ,YV,YbV = Yijv(k)
 
-            if self.bus_id_to_genlist.has_key(bus['id']):
+            if bus['id'] in self.bus_id_to_genlist:
                 genlist = [self.generators[i] for i in self.bus_id_to_genlist[bus['id']]]
 
                 L = [offset['X'] + ii + jj*Nx for ii,jj in zip(YI,YJ)]
@@ -764,8 +760,8 @@ class opf(object):
             for k,sk in enumerate(dims['s']):
                 zk = matrix(zz[offset:offset+sk**2],(sk,sk))
                 offset += sk**2
-                zkr = 0.5*(zk[:sk/2,:sk/2] + zk[sk/2:,sk/2:])
-                zki = 0.5*(zk[sk/2:,:sk/2] - zk[:sk/2,sk/2:])
+                zkr = 0.5*(zk[:sk//2,:sk//2] + zk[sk//2:,sk//2:])
+                zki = 0.5*(zk[sk//2:,:sk//2] - zk[:sk//2,sk//2:])
                 zki[::sk+1] = 0.0
                 zk = zkr + complex(0,1.0)*zki
                 self.Xc.append(zk)
@@ -863,10 +859,10 @@ class opf(object):
                     }
             if hasattr(self,"blocks_to_sparse"): data["blocks_to_sparse"] = self.blocks_to_sparse
             if fmt in ['pickle','pkl']:
-                with open(fname, 'w') as f: cPickle.dump(data, f)
+                with open(fname, 'w') as f: pickle.dump(data, f)
             else:
                 import bz2
-                with bz2.BZ2File(fname, 'w') as f: cPickle.dump(data, f)
+                with bz2.BZ2File(fname, 'w') as f: pickle.dump(data, f)
         else:
            raise ValueError("Unknown format.")
         return
