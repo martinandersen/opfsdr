@@ -9,7 +9,7 @@ License: GPL-3
 
 from cvxopt import sparse, spmatrix, spdiag, matrix, max, mul, div, exp, sqrt, solvers, lapack, blas, msk
 from itertools import chain, compress
-from math import pi, atan2, cos, sin
+from math import pi, atan2, cos, sin, tan
 import pickle, re
 import numpy as np
 import sys
@@ -76,20 +76,32 @@ def _conelp_to_real(P, inplace = True, **kwargs):
     Glist, hlist = [G[:offset_s,:].real()],[h[:offset_s].real()]
     Gs = G[offset_s:,:]
     hs = sparse(h[offset_s:])
-    ri = []
-    for k,si in enumerate(dims['s']):
-        for j in range(si):
-            for i in range(si):
-                ri.append((k,i,j))
-
     ns = dims['s']
+
+    if max(ns) <= 500:
+        ri = []
+        for k,si in enumerate(dims['s']):
+            for j in range(si):
+                for i in range(si):
+                    ri.append((k,i,j))
+        def blk_entry(idx):
+            return ri[idx]
+    else:
+        def blk_entry(idx):
+            blk = 0
+            while idx >= ns[blk]**2:
+                idx -= ns[blk]**2
+                blk += 1
+            return blk, idx % ns[blk], idx // ns[blk]
+
     offsets = [0]
     for ni in ns: offsets.append(offsets[-1] + (2*ni)**2)
 
     I,J,V = [],[],[]
     GI,GJ,GV = Gs.I,Gs.J,Gs.V
     for k in range(len(GI)):
-        blk,i,j = ri[GI[k]]
+        #blk,i,j = ri[GI[k]]
+        blk,i,j = blk_entry(GI[k])
         ni = 2*ns[blk]
         if i == j:
             I.append([offsets[blk]+ni*j+i,offsets[blk]+ni*(ns[blk]+j)+ns[blk]+i])
@@ -106,7 +118,8 @@ def _conelp_to_real(P, inplace = True, **kwargs):
     I,J,V = [],[],[]
     hV, hI = hs.V,hs.I
     for k in range(len(hV)):
-        blk,i,j = ri[hI[k]]
+        #blk,i,j = ri[hI[k]]
+        blk,i,j = blk_entry(GI[k])
         ni = 2*ns[blk]
         if i == j:
             I.append([offsets[blk]+ni*j+i,offsets[blk]+ni*(ns[blk]+j)+ns[blk]+i])
@@ -123,7 +136,7 @@ def _conelp_to_real(P, inplace = True, **kwargs):
     Glist += [Gr]
     hlist += [hr]
     G = sparse(Glist)
-    h = matrix(hlist)
+    h = sparse(hlist)
     dims = {'l':dims['l'],'q':dims['q'],'s':[2*si for si in dims['s']]}
 
     if inplace:
@@ -193,6 +206,7 @@ class opf(object):
         self.gen_elim = kwargs.get('gen_elim', 0.0)
         self.truncate_gen_bounds = kwargs.get('truncate_gen_bounds',None)
         self.line_constraints = kwargs.get('line_constraints', True)
+        self.pad_constraints = kwargs.get('pad_constraints', True)
         self.__verbose = kwargs.get('verbose',0)
         self.eigtol = kwargs.get('eigtol',1e5)
 
@@ -311,8 +325,13 @@ class opf(object):
             if branch['r'] < self.branch_rmin:
                 if kwargs.get('verbose',0): print("Warning: branch (%i:%i->%i) with small resistance; enforcing min. resistance"%(k,branch['from'],branch['to']))
                 branch['r'] = self.branch_rmin
-            if not self.line_constraints: branch['rateA'] = 0.0
+            if not self.line_constraints:
+               branch['rateA'] = 0.0
+            if not self.pad_constraints:
+               branch['angle_min'] = -360.0
+               branch['angle_max'] = 360.0
             self.branches.append(branch)
+
 
         # gen cost
         for i, k in enumerate(active_generators):
@@ -418,6 +437,9 @@ class opf(object):
     def branches_with_flow_constraints(self):
         return [(k,branch) for k,branch in enumerate(self.branches) if branch['rateA'] < 9900.0 and branch['rateA'] > 0]
 
+    def branches_with_pad_constraints(self):
+        return [(k,branch) for k,branch in enumerate(self.branches) if branch['angle_min'] > -360.0 and branch['angle_max'] < 360.0]
+
     def generators_with_fixed_cost(self):
       return [gen for gen in self.generators if gen['pslack'] is None]
 
@@ -445,6 +467,7 @@ class opf(object):
 
     def __str__(self):
         Nbranch_constr = len(self.branches_with_flow_constraints())
+        Npad_constr = len(self.branches_with_pad_constraints())
         Ngen_lin = len(self.generators_with_var_real_power_and_linear_cost())
         Ngen_quad = len(self.generators_with_var_real_power_and_quadratic_cost())
         Ngen_fixed = len(self.generators_with_fixed_cost())
@@ -456,13 +479,16 @@ class opf(object):
    -  lin. cost      : %6i
    -  quad. cost     : %6i
 * branches           : %6i
-   -  constrained    : %6i
+   -  flow constr.   : %6i
+   -  phase constr.  : %6i
    -  transformer    : %6i"""\
-    % (self.nbus,self.ngen,Ngen_fixed,Ngen_lin,Ngen_quad,self.nbranch,Nbranch_constr,Ntran)
+    % (self.nbus,self.ngen,Ngen_fixed,Ngen_lin,Ngen_quad,self.nbranch,Nbranch_constr,Npad_constr,Ntran)
 
     def _build_conelp(self):
         Nx = self.nbus
         self.Nx = Nx
+        nflow_constr = len(self.branches_with_flow_constraints())
+        npad_constr = len(self.branches_with_pad_constraints())
         ngen_var_p = len(self.generators_with_var_real_power())
         ngen_qcost = len(self.generators_with_var_real_power_and_quadratic_cost())
         ngen_lcost = len(self.generators_with_var_real_power_and_linear_cost())
@@ -471,8 +497,8 @@ class opf(object):
         self._ngen_var_q = ngen_var_q
 
         dims = {}
-        dims['l'] = 2*self.nbus + 2*ngen_var_p + 2*ngen_var_q + ngen_qcost
-        dims['q'] = 2*len(self.branches_with_flow_constraints())*[3]
+        dims['l'] = 2*self.nbus + 2*ngen_var_p + 2*ngen_var_q + ngen_qcost + 2*npad_constr
+        dims['q'] = 2*nflow_constr*[3]
         dims['q'] += ngen_qcost*[3]
         dims['s'] = [Nx]
 
@@ -484,7 +510,9 @@ class opf(object):
         offset['wqu'] = offset['wql'] + ngen_var_q  # wqu = slack upper bnd: Qg[i] + wqu[i] = Qmax[i]
         offset['ul'] = offset['wqu'] + ngen_var_q   # ul  = slack lower bnd: Vmin[i]**2 + ul[i] = abs(V[i])
         offset['uu'] = offset['ul'] + self.nbus     # uu  = slack upper bnd: abs(V[i]) + uu[i] = Vmax[i]**2
-        offset['z'] = offset['uu'] + self.nbus      # z   = line flow const: z[k*3:(k+1)*3] in SOC of dim 3
+        offset['lpad'] = offset['uu'] + self.nbus
+        offset['upad'] = offset['lpad'] + npad_constr
+        offset['z'] = offset['upad'] + npad_constr  # z   = line flow const: z[k*3:(k+1)*3] in SOC of dim 3
         offset['w'] =  offset['z'] + sum(dims['q'])-3*ngen_qcost  # w  = epigraph of quad. gen cost: w[k*3:(k+1)*3] in SOC of dim 3
         offset['X'] = offset['w'] + 3*ngen_qcost                  # X  = SDR of X = V*V.H
         N = offset['X'] + Nx**2
@@ -501,8 +529,11 @@ class opf(object):
         dual_offset.append(dual_offset[-1] + 2*self.nbus)
         # line constraints
         dual_offset.append(dual_offset[-1] + 6*len(self.branches_with_flow_constraints()))
+        # pad pad_constraints
+        dual_offset.append(dual_offset[-1] + 2*npad_constr)
         # quad. cost
         dual_offset.append(dual_offset[-1] + 3*len(self.generators_with_var_real_power_and_quadratic_cost()))
+
         self.dual_offset = matrix(dual_offset)
 
         ##
@@ -665,6 +696,26 @@ class opf(object):
             c.append(0.0)
 
         ##
+        ## Phase angle difference constraints
+        ##
+        for kk,kbranch in enumerate(self.branches_with_pad_constraints()):
+            k,branch = kbranch
+            tan_amin = tan(branch['angle_min']*pi/180.0)
+            f = self.bus_id_to_index[branch['from']]
+            t = self.bus_id_to_index[branch['to']]
+            I.append([offset['lpad']+kk] + [offset['X']+f+t*Nx,offset['X']+t+f*Nx])
+            V.append([1.0] + [complex(0.5*tan_amin,0.5), complex(0.5*tan_amin,-0.5)])
+            c.append(0.0)
+        for kk,kbranch in enumerate(self.branches_with_pad_constraints()):
+            k,branch = kbranch
+            tan_amax = tan(branch['angle_max']*pi/180.0)
+            f = self.bus_id_to_index[branch['from']]
+            t = self.bus_id_to_index[branch['to']]
+            I.append([offset['upad']+kk] + [offset['X']+f+t*Nx,offset['X']+t+f*Nx])
+            V.append([1.0] + [-complex(0.5*tan_amax,0.5), -complex(0.5*tan_amax,-0.5)])
+            c.append(0.0)
+
+        ##
         ## Quadratic cost -- epigraph
         ##
         for k, gen in enumerate(self.generators_with_var_real_power_and_quadratic_cost()):
@@ -702,7 +753,6 @@ class opf(object):
         ## Build c, h, and G
         ##
         c = matrix(c)
-        h = matrix(h)
         J = [len(Ii)*[j] for j,Ii in enumerate(I)]
         if self.scale:
             u = matrix([max([abs(vi) for vi in v]) for v in V])
@@ -720,19 +770,20 @@ class opf(object):
     def solve(self, solver = "mosek"):
         if self.to_real == False: raise ValueError("Solvers do not support complex-valued data.")
         sol = {}
+        c,G,h,dims = self.problem_data
         if solver == "mosek":
             if self.__verbose:
                msk.options[msk.mosek.iparam.log] = 1
             else:
                msk.options[msk.mosek.iparam.log] = 0
-            solsta,mu,zz = msk.conelp(*self.problem_data)
+            solsta,mu,zz = msk.conelp(c,G,matrix(h),dims)
             sol['status'] = str(solsta).split('.')[-1]
         elif solver == "cvxopt":
             if self.__verbose:
                 options = {'show_progress':True}
             else:
                 options = {'show_progress':False}
-            csol = solvers.conelp(*self.problem_data,options=options)
+            csol = solvers.conelp(c,G,matrix(h),dims,options=options)
             zz = csol['z']
             mu = csol['x']
             sol['status'] = csol['status']
@@ -834,9 +885,13 @@ class opf(object):
             cost_scale = self.cost_scale
             if G.typecode == 'd':
                 Gs = csr_matrix((np.array(G.V).squeeze(), (np.array(G.I).squeeze(), np.array(G.J).squeeze())), shape=np.array(G.size))
-                mdict = {'A':Gs,
+                if isinstance(h,matrix):
+                    ht = np.array(h).squeeze()
+                else:
+                    ht = csr_matrix((np.array(h.V).squeeze(), (np.array(h.I).squeeze(), np.array(h.J).squeeze())), shape=np.array(h.size))
+                mdict = {'A':Gs.transpose(),
                          'b':-np.array(c).squeeze(),
-                         'c':np.array(h).squeeze(),
+                         'c':ht,
                          'K':{'l':float(dims['l']),'q':np.array(dims['q'],dtype='<f8'),'s':np.array(dims['s'],dtype='<f8')},
                          'opfsdr':{
                            'offsetx':np.array(self.offset['X']).squeeze(),
