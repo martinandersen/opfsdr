@@ -330,6 +330,11 @@ class opf(object):
             if not self.pad_constraints:
                branch['angle_min'] = -360.0
                branch['angle_max'] = 360.0
+            elif (branch['angle_min'] > -360.0 and branch['angle_min'] <= -180.0) or (branch['angle_max'] < 360.0 and branch['angle_max'] >= 180.0):
+               if kwargs.get('verbose',0): print("Warning: branch (%i:%i->%i) with unsupported phase angle diff. constraint; dropping constraint"%(k,branch['from'],branch['to']))
+               branch['angle_min'] = -360.0
+               branch['angle_max'] = 360.0
+
             self.branches.append(branch)
 
 
@@ -604,6 +609,7 @@ class opf(object):
                 I.append(L)
                 V.append(YbV)
                 c.append(bus['Qd'])
+
         ##
         ## Power generation limits
         ##
@@ -754,12 +760,6 @@ class opf(object):
         ##
         c = matrix(c)
         J = [len(Ii)*[j] for j,Ii in enumerate(I)]
-        if self.scale:
-            u = matrix([max([abs(vi) for vi in v]) for v in V])
-            u = max(u,abs(c))
-            V = [[vi/u[j] for vi in v] for j,v in enumerate(V)]
-            c = div(c,u)
-
         G = spmatrix([v for v in chain(*V)],
                      [v for v in chain(*I)],
                      [v for v in chain(*J)],(N,len(c)))
