@@ -330,7 +330,7 @@ class opf(object):
             if not self.pad_constraints:
                branch['angle_min'] = -360.0
                branch['angle_max'] = 360.0
-            elif (branch['angle_min'] > -360.0 and branch['angle_min'] <= -180.0) or (branch['angle_max'] < 360.0 and branch['angle_max'] >= 180.0):
+            elif (branch['angle_min'] > -360.0 and branch['angle_min'] <= -180.0) or (branch['angle_max'] < 360.0 and branch['angle_max'] >= 180.0) or (branch['angle_min']==0.0 and branch['angle_max']==0.0):
                if kwargs.get('verbose',0): print("Warning: branch (%i:%i->%i) with unsupported phase angle diff. constraint; dropping constraint"%(k,branch['from'],branch['to']))
                branch['angle_min'] = -360.0
                branch['angle_max'] = 360.0
