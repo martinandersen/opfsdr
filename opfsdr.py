@@ -52,7 +52,7 @@ def _load_case(mfile, verbose = 0):
       baseMVA = re.search("mpc.baseMVA = (\d+)", case_as_str).group(1)
       version = re.search("mpc.version = '(\d+)'", case_as_str).group(1)
       bus_str = re.search("mpc.bus = \[([-\s0-9e.;]+)\]", case_as_str).group(1)
-      gen_str = re.search("mpc.gen = \[([-\s0-9e.;]+)\]", case_as_str).group(1)
+      gen_str = re.search("mpc.gen = \[([-\s0-9e.;Iinf]+)\]", case_as_str).group(1)
       branch_str = re.search("mpc.branch = \[([-\s0-9e.;]+)\]", case_as_str).group(1)
       gencost_str = re.search("mpc.gencost = \[([-\s0-9e.;]+)\]", case_as_str).group(1)
    except:
@@ -346,6 +346,8 @@ class opf(object):
                        'ncoef': int(data['gencost'][k,3]),
                        'coef': data['gencost'][k,4:].T
                        }
+            if gencost['model'] == 1:
+                raise TypeError("Piecewise linear cost functions are not supported.")
             self.generators[i]['Pcost'] = gencost
 
         if data['gencost'].shape[0] == 2*data['gen'].shape[0]:
