@@ -32,5 +32,5 @@ setup(
     keywords='optimization power flow',
     py_modules=['opfsdr'],
     zip_safe = True,
-    install_requires=['cvxopt>=1.1.9','chompack>=2.3.2','numpy','mosek','requests'],
+    install_requires=['cvxopt>=1.2.0','chompack>=2.3.2','numpy','mosek','requests'],
 )
