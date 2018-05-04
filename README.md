@@ -9,8 +9,8 @@ This repository contains a rudimentary implementation of the semidefinite relaxa
 The latest version can be installed using [pip](https://pip.pypa.io) as follows:
 
 ```
-pip install -f http://download.mosek.com/stable/wheel/index.html Mosek
-pip install git+http://github.com/martinandersen/opfsdr
+pip install -f https://download.mosek.com/stable/wheel/index.html Mosek
+pip install git+https://github.com/martinandersen/opfsdr
 ```
 
 ## License
