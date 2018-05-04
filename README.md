@@ -4,9 +4,15 @@ This repository contains a rudimentary implementation of the semidefinite relaxa
 
 > M. S. Andersen, A. Hansson, L. Vandenberghe, "[Reduced-Complexity Semidefinite Relaxations of Optimal Power Flow Problems](https://doi.org/10.1109/TPWRS.2013.2294479)", IEEE Transactions on Power Systems, 29 (4), pp. 1855–1863, 2014.
 
+## Installation
+
 The latest version can be installed using [pip](https://pip.pypa.io) as follows:
 
 ```
 pip install -f http://download.mosek.com/stable/wheel/index.html Mosek
 pip install git+http://github.com/martinandersen/opfsdr
 ```
+
+## License
+
+[GPL-3](LICENSE)
