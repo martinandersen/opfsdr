@@ -3,7 +3,7 @@
 """
 Semidefinite Relaxation of Optimal Power Flow Problems
 
-Copyright 2017: Martin S. Andersen (martin.skovgaard.andersen@gmail.com)
+Copyright 2017-2018: Martin S. Andersen (martin.skovgaard.andersen@gmail.com)
 License: GPL-3
 """
 
@@ -173,13 +173,13 @@ def _conelp_scale(P, inplace = True, **kwargs):
     c,G,h,dims = P.problem_data
     cp = G.CCS[0]
     V = abs(G.V)
-    u = matrix([max(V[cp[i]:cp[i+1]]) for i in range(len(cp)-1)])
+    u = matrix([max(abs(V[cp[i]:cp[i+1]])) if cp[i+1]-cp[i]>0 else 1.0 for i in range(len(cp)-1)])
     u = max(u,abs(c))
     G = G*spmatrix(div(1.0,u),range(len(u)),range(len(u)))
     c = div(c,u)
     nrm2h = blas.nrm2(h)
     if inplace: P.cost_scale *= max(1.0,nrm2h)
-    if abs(nrm2h) > 1.0:  h /= nrm2h
+    if nrm2h > 1.0:  h /= nrm2h
     if inplace: P.problem_data = (c,G,h,dims)
     return c,G,h,dims
 
