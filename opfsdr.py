@@ -75,9 +75,9 @@ def _conelp_to_real(P, inplace = True, **kwargs):
     offset_s = dims['l'] + sum(dims['q'])
     Glist, hlist = [G[:offset_s,:].real()],[h[:offset_s].real()]
     Gs = G[offset_s:,:]
-    hs = sparse(h[offset_s:])
+    hs = sparse(h[offset_s:,0])    
     ns = dims['s']
-
+    
     if max(ns) <= 500:
         ri = []
         for k,si in enumerate(dims['s']):
@@ -546,16 +546,13 @@ class opf(object):
         ##
         ## Build h and initialize c
         ##
-        h1 = spmatrix(1.0,range(ngen_qcost),ngen_qcost*[0],(N,1))  # quadratic cost
         I,V = [],[]
         for k,gen in enumerate(self. generators_with_var_real_power()):
             beta = gen['Pcost']['coef'][-2]
             if gen['Pcost']['ncoef'] > 2: beta += 2.0*self.baseMVA*gen['Pcost']['coef'][-3]*gen['Pmin']
             I.append(offset['wpl'] + gen['pslack'])
             V.append(beta)
-
-        h2 = spmatrix(V,I,len(I)*[0],(N,1))
-        h = h1 + h2
+        h = spmatrix(ngen_qcost*[1.0]+V, list(range(ngen_qcost))+I, (ngen_qcost+len(I))*[0], (N,1))
         c = []
 
         ##
