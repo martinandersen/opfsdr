@@ -75,9 +75,9 @@ def _conelp_to_real(P, inplace = True, **kwargs):
     offset_s = dims['l'] + sum(dims['q'])
     Glist, hlist = [G[:offset_s,:].real()],[h[:offset_s].real()]
     Gs = G[offset_s:,:]
-    hs = sparse(h[offset_s:,0])    
+    hs = sparse(h[offset_s:,0])
     ns = dims['s']
-    
+
     if max(ns) <= 500:
         ri = []
         for k,si in enumerate(dims['s']):
@@ -913,7 +913,7 @@ class opf(object):
                     }
             if hasattr(self,"blocks_to_sparse"): data["blocks_to_sparse"] = self.blocks_to_sparse
             if fmt in ['pickle','pkl']:
-                with open(fname, 'w') as f: pickle.dump(data, f)
+                with open(fname, 'wb') as f: pickle.dump(data, f)
             else:
                 import bz2
                 with bz2.BZ2File(fname, 'w') as f: pickle.dump(data, f)

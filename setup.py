@@ -12,7 +12,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='opfsdr',
-    version='0.2.4',
+    version='0.2.5',
     description='Semidefinite Relaxation of AC Optimal Power Flow',
     long_description=long_description,
     url='https://github.com/martinandersen/opfsdr',
@@ -28,9 +28,10 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
     keywords='optimization power flow',
     py_modules=['opfsdr'],
     zip_safe = True,
-    install_requires=['cvxopt>=1.2.0','chompack>=2.3.2','numpy','Mosek','requests'],
+    install_requires=['cvxopt>=1.2.3','chompack>=2.3.3','numpy','Mosek','requests'],
 )
